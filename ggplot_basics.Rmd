@@ -1,0 +1,141 @@
+---
+title: "Volcano Plot using ggplot2"
+author: "Debojyoti Das"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Introduction
+
+This document demonstrates how to generate a volcano plot using `ggplot2` by reading a CSV file that contains gene expression data. The dataset must include at least three mandatory columns:
+
+- `log2FC` (Log2 Fold Change)
+- `p_value` (P-value for statistical significance)
+- `Gene_symbol` (or Gene EntrezID or Gene ENSEMBL ID)
+
+Each step is explained in detail, with code chunks for clarity.
+
+## Setting Up Project Directories
+
+```{r setup, echo=TRUE}
+project_dir <- "/Users/debda22/Projects/core_facility_projects/ggplot_basics"
+data_dir <- paste0(project_dir, "/input_data")
+result_dir <- paste0(project_dir, "/results")
+
+# Create directories if they don't exist
+if (!dir.exists(result_dir)) dir.create(result_dir, recursive = TRUE)
+```
+
+## Reading the Input Data
+
+```{r read_data, echo=TRUE}
+input_file <- paste0(data_dir, "/test_input_file.csv")
+data <- read.csv(input_file)
+
+# Display first few rows of the dataset
+display_data <- head(data)
+display_data
+```
+
+## Installing and Loading Required Libraries
+
+```{r load_libraries, echo=TRUE}
+# Check if required packages are installed, if not install them
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+# Load libraries
+library(ggplot2)
+library(dplyr)
+```
+
+## Transforming Data for Visualization
+
+Before plotting, we transform the data:
+- Convert the `p_value` column to `-log10(p_value)` to emphasize small p-values.
+- Define upregulated and downregulated genes based on cutoff values.
+- Reverse the `log2FC` values for visualization.
+
+We define thresholds for classification:
+- `p_value` cutoff: 0.05
+- `log2FC` cutoff: 1
+
+```{r classify_data, echo=TRUE}
+# Define cutoffs
+pval_cutoff <- 0.05
+log2fc_cutoff <- 1
+
+# Classify genes into upregulated, downregulated, or neutral
+data <- data %>%
+  mutate(
+    logP = -log10(p_value),
+    negLog2FC = -log2FC,
+    regulation = case_when(
+      p_value < pval_cutoff & log2FC > log2fc_cutoff ~ "Upregulated",
+      p_value < pval_cutoff & log2FC < -log2fc_cutoff ~ "Downregulated",
+      TRUE ~ "Non-significant"
+    )
+  )
+```
+
+## Selecting Top Genes for Labeling
+
+To highlight important genes, we select the top `n` genes from the upregulated and downregulated groups.
+
+```{r select_top_genes, echo=TRUE}
+top_n <- 10  # Number of genes to label
+
+top_up <- data %>%
+  filter(regulation == "Upregulated") %>%
+  arrange(p_value) %>%
+  head(top_n)
+
+top_down <- data %>%
+  filter(regulation == "Downregulated") %>%
+  arrange(p_value) %>%
+  head(top_n)
+
+# Combine top genes
+top_genes <- bind_rows(top_up, top_down)
+```
+
+## Creating the Volcano Plot
+
+We use `ggplot2` to create a volcano plot with color distinctions:
+
+```{r generate_volcano, echo=TRUE}
+volcano <- ggplot(data, aes(x = negLog2FC, y = logP, color = regulation)) +
+  geom_point(alpha = 0.7) +
+  scale_color_manual(values = c("Non-significant" = "black", "Upregulated" = "red", "Downregulated" = "blue")) +
+  labs(title = "Volcano Plot", x = "-Log2 Fold Change", y = "-Log10 P-value") +
+  theme_minimal() +
+  geom_text(
+    data = top_genes, 
+    aes(label = Gene_symbol), 
+    vjust = -1, 
+    size = 3, 
+    show_guide = FALSE,
+    check_overlap = TRUE)
+```
+
+Display plot
+```{r plot_volcano, echo=TRUE}
+print(volcano)
+```
+
+## Saving the Plot
+
+```{r save_plot, echo=TRUE}
+output_file <- paste0(result_dir, "/volcano_plot.png")
+ggsave(output_file, plot = volcano, width = 8, height = 6)
+```
+
+## Conclusion
+
+This document demonstrated how to load, process, and visualize gene expression data using a volcano plot. We added classification for upregulated and downregulated genes, highlighted top genes, and saved the final plot.
