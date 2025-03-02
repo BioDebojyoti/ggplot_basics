@@ -17,14 +17,40 @@ This document demonstrates how to generate a volcano plot using `ggplot2` by rea
 
 Each step is explained in detail, with code chunks for clarity.
 
+## Installing and Loading Required Libraries
+
+Check if required packages are installed, if not install them
+```{r install_libraries, echo=TRUE}
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+
+if (!requireNamespace("ggrepel", quietly = TRUE)) {
+  install.packages("ggrepel")
+}
+
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+```
+
+Load libraries
+```{r load_libraries, echo=TRUE}
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+```
+
 ## Setting Up Project Directories
 
-```{r setup, echo=TRUE}
+```{r directory_setup, echo=TRUE}
 project_dir <- "/Users/debda22/Projects/core_facility_projects/ggplot_basics"
 data_dir <- paste0(project_dir, "/input_data")
 result_dir <- paste0(project_dir, "/results")
+```
 
-# Create directories if they don't exist
+Create directories if they don't exist
+```{r setup, echo=TRUE}
 if (!dir.exists(result_dir)) dir.create(result_dir, recursive = TRUE)
 ```
 
@@ -33,26 +59,11 @@ if (!dir.exists(result_dir)) dir.create(result_dir, recursive = TRUE)
 ```{r read_data, echo=TRUE}
 input_file <- paste0(data_dir, "/test_input_file.csv")
 data <- read.csv(input_file)
-
-# Display first few rows of the dataset
-display_data <- head(data)
-display_data
 ```
 
-## Installing and Loading Required Libraries
-
-```{r load_libraries, echo=TRUE}
-# Check if required packages are installed, if not install them
-if (!requireNamespace("ggplot2", quietly = TRUE)) {
-  install.packages("ggplot2")
-}
-if (!requireNamespace("dplyr", quietly = TRUE)) {
-  install.packages("dplyr")
-}
-
-# Load libraries
-library(ggplot2)
-library(dplyr)
+Display first few rows of the dataset
+```{r check_data, echo=TRUE}
+head(data)
 ```
 
 ## Transforming Data for Visualization
@@ -66,12 +77,15 @@ We define thresholds for classification:
 - `p_value` cutoff: 0.05
 - `log2FC` cutoff: 1
 
-```{r classify_data, echo=TRUE}
-# Define cutoffs
+
+Define cutoffs
+```{r set_cutoff, echo=TRUE}
 pval_cutoff <- 0.05
 log2fc_cutoff <- 1
+```
 
-# Classify genes into upregulated, downregulated, or neutral
+Classify genes into upregulated, downregulated, or Non-significant
+```{r classify_data, echo=TRUE}
 data <- data %>%
   mutate(
     logP = -log10(p_value),
@@ -89,16 +103,16 @@ data <- data %>%
 To highlight important genes, we select the top `n` genes from the upregulated and downregulated groups.
 
 ```{r select_top_genes, echo=TRUE}
-top_n <- 10  # Number of genes to label
+top_n <- 5  # Number of genes to label
 
 top_up <- data %>%
   filter(regulation == "Upregulated") %>%
-  arrange(p_value) %>%
+  arrange(desc(log2FC)) %>%
   head(top_n)
 
 top_down <- data %>%
   filter(regulation == "Downregulated") %>%
-  arrange(p_value) %>%
+  arrange(desc(abs(log2FC))) %>%
   head(top_n)
 
 # Combine top genes
@@ -115,13 +129,14 @@ volcano <- ggplot(data, aes(x = negLog2FC, y = logP, color = regulation)) +
   scale_color_manual(values = c("Non-significant" = "black", "Upregulated" = "red", "Downregulated" = "blue")) +
   labs(title = "Volcano Plot", x = "-Log2 Fold Change", y = "-Log10 P-value") +
   theme_minimal() +
-  geom_text(
+  geom_text_repel(
     data = top_genes, 
     aes(label = Gene_symbol), 
     vjust = -1, 
     size = 3, 
-    show_guide = FALSE,
-    check_overlap = TRUE)
+    show.legend = FALSE
+    ) +
+  ylim(c(0,6))
 ```
 
 Display plot
